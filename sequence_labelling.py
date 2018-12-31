@@ -17,11 +17,14 @@ from finetune import SequenceLabeler
 from finetune.utils import indico_to_finetune_sequence, finetune_to_indico_sequence
 from finetune.metrics import (
     sequence_labeling_token_precision, sequence_labeling_token_recall,
-    sequence_labeling_overlap_precision, sequence_labeling_overlap_recall
+    sequence_labeling_overlap_precision, sequence_labeling_overlap_recall,
+    sequence_labeling_micro_token_f1, sequence_labeling_overlaps
 )
+from pprint import pprint
 import requests
 from bs4 import BeautifulSoup as bs
 from bs4.element import Tag
+from random import shuffle
 
 
 def get_text_and_annotations_from_file(dataset_folder: Path):
@@ -41,8 +44,14 @@ def get_text_and_annotations_from_file(dataset_folder: Path):
                 #     break
                 text = json.loads(line1)
                 annotations = json.loads(line2)
-                ner_texts.append(text)
-                ner_annotations.append(annotations)
+                if annotations != [] and text != '':
+                    ner_texts.append(text)
+                    ner_annotations.append(annotations)
+
+    idxs = [x for x in range(len(ner_texts))]
+    shuffle(idxs)
+    ner_texts = [ner_texts[i] for i in idxs]
+    ner_annotations = [ner_annotations[i] for i in idxs]
     return ner_texts, ner_annotations
 
 
@@ -116,10 +125,21 @@ train_texts, test_texts, train_annotations, test_annotations = train_test_split(
                                                                                 annotations[:data_size],
                                                                                 test_size=0.1)
 
+model_store_path = '/media/liah/DATA/acme_data_ner/models/model_{:d}'.format(data_size)
+model_log_path = '/media/liah/DATA/acme_data_ner/log/model_{:d}'.format(data_size)
+
 # model.fit(train_texts) # unsup. learning for lm
 model.fit(train_texts, train_annotations)
+model.save(model_store_path)
+
 predictions = model.predict(test_texts)
 probas = model.predict_proba(test_texts)
-print(probas)
-model_store_path = '/media/liah/DATA/acme_data_ner/models/model{:d}'.format(data_size)
-model.save(model_store_path)
+overlaps = sequence_labeling_overlaps(test_annotations, predictions)
+f1_score = sequence_labeling_micro_token_f1(test_annotations, predictions)
+
+with open(model_log_path, 'a') as logf:
+    pprint(probas, logf)
+    pprint(f1_score, logf)
+    pprint('TP, FP, TN, FN:', logf)
+    pprint(overlaps, logf)
+
