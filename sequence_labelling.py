@@ -1,14 +1,9 @@
 import os
-import unittest
-import logging
-from copy import copy
 from pathlib import Path
 import codecs
 import json
-
 # required for tensorflow logging control
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 import tensorflow as tf
 import numpy as np
 from sklearn.metrics import accuracy_score
